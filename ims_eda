@@ -1,0 +1,187 @@
+## Incident Management System
+
+# import required libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore")
+
+# set disply option to see all columns
+pd.set_option('display.max_columns', None)
+
+#read data
+data = pd.read_csv('incident_event_log.csv')
+data.head(10)
+
+data.number.unique().shape
+
+data.shape
+
+**Data Description:**
+
+    1. number: incident identifier (24,918 different values);
+    2. incident state: eight levels controlling the incident management process transitions from
+    opening until closing the case;
+    3. active: Boolean attribute that shows whether the record is active or closed/cancelled;
+    4. reassignment_count: number of times the incident has the group or the support analysts
+    changed;
+    5. reopen_count: number of times the incident resolution was rejected by the caller;
+    6. sys_mod_count: number of incident updates until that moment;
+    7. made_sla: boolean attribute that shows whether the incident exceeded the target SLA;
+    8. caller_id: identifier of the user affected;
+    9. opened_by: identifier of the user who reported the incident;
+    10. opened_at: incident user opening date and time;
+    11. sys_created_by: identifier of the user who registered the incident;
+    12. sys_created_at: incident system creation date and time;
+    13. sys_updated_by: identifier of the user who updated the incident and generated the
+    current log record;
+    14. sys_updated_at: incident system update date and time;
+    15. contact_type: categorical attribute that shows by what means the incident was reported;
+    16. location: identifier of the location of the place affected;
+    17. category: first-level description of the affected service;
+    18. subcategory: second-level description of the affected service (related to the first level
+    description, i.e., to category);
+    19. u_symptom: description of the user perception about service availability;
+    20. cmdb_ci: (confirmation item) identifier used to report the affected item (not mandatory);
+    21. impact: description of the impact caused by the incident (values: 1 - High; 2 - Medium; 3 -
+    Low);
+    22. urgency: description of the urgency informed by the user for the incident resolution
+    (values: 1 - High; 2 - Medium; 3 - Low);
+    23. priority: calculated by the system based on &#39;impact&#39; and &#39;urgency&#39;;
+    24. assignment_group: identifier of the support group in charge of the incident;
+    25. assigned_to: identifier of the user in charge of the incident;
+    26. knowledge: boolean attribute that shows whether a knowledge base document was used
+    to resolve the incident;
+    27. u_priority_confirmation: boolean attribute that shows whether the priority field has been
+    double-checked;
+    28. notify: categorical attribute that shows whether notifications were generated for the
+    incident;
+
+    29. problem_id: identifier of the problem associated with the incident;
+    30. rfc: (request for change) identifier of the change request associated with the incident;
+    31. vendor: identifier of the vendor in charge of the incident;
+    32. caused_by: identifier of the RFC responsible by the incident;
+    33. close_code: identifier of the resolution of the incident;
+    34. resolved_by: identifier of the user who resolved the incident;
+    35. resolved_at: incident user resolution date and time (dependent variable);
+    36. closed_at: incident user close date and time (dependent variable).
+
+
+
+
+
+data.info()
+
+data.describe()
+
+data.describe(include='bool')
+
+print(f"Number of rows : {data.shape[0]}")
+print(f"Number of columns : {data.shape[1]}")
+
+## Missing Values
+
+We can also see there a missing values as '?' lets replace them with 'nan' so we can deal with them
+
+#replace '?' with 'nan'
+data = data.replace('?', np.nan)
+data.head()
+
+data.describe(exclude='number')
+
+#
+
+#counting missing values
+missing_percent = data.isnull().sum().sort_values(ascending=False)/data.shape[0]
+missing_percent
+
+# Checking missing values visually
+plt.figure(figsize=(20,8))
+sns.barplot(missing_percent.values, missing_percent.index, orient="h")
+plt.xlabel("Missing percent")
+plt.ylabel("Column names")
+plt.title("Missing values in columns ")
+plt.show()
+
+# checking missing data visually
+plt.figure(figsize=(15,8))
+sns.heatmap(data.isnull(), cbar=False)
+plt.title("Checking visually for columns with missing values")
+plt.show()
+
+**Inference:**
+    We can see features like `problem_id`, `rfc`, `vendor`, `caused_by` and `cmdb_ci` have more than 90% missing data so lets get rid of these features as there is no point imputing them.
+
+#dropping columns which have more than 70% of data which is missing
+data_new = data.drop(missing_percent[missing_percent>0.70].index, axis=1)
+
+
+
+# checking missing data visually
+plt.figure(figsize=(15,8))
+sns.heatmap(data_new.isnull(), cbar=False)
+plt.title("Checking visually for columns with missing values after dropping columns with maximum missing values")
+plt.show()
+
+## Data Types of columns:
+
+#checking data_new types of all columns
+feat_num = data_new.select_dtypes(np.number).columns.tolist()
+feat_cat = data_new.select_dtypes('object').columns.tolist()
+
+print(f"Numerical Features: {feat_num}\n")
+print(f"Cateforical Features:\n {feat_cat}")
+
+# checking distribution for all numerical features
+
+for feat in feat_num:
+    sns.distplot(data_new[feat])
+    display(data_new[feat].value_counts().reset_index().T)
+    plt.show()
+
+# checking distribution of categorical features
+print("Number of unique values in categorical columns:")
+# getting number of unique values in all categorical features
+data_new[feat_cat].nunique().sort_values(ascending=False)
+
+# here we see a lot of columns which are actually dates but not categories
+
+dates = ['sys_updated_at', 'opened_at', 'resolved_at', 'sys_created_at', 'closed_at']
+
+
+
+
+# updating datatype of the date columns
+
+for feat in dates:
+    data_new[feat] = pd.to_datetime(data_new[feat])
+
+# check their new datataype    
+data_new[dates].dtypes
+
+# remove the dates from categorical features
+for date in dates:
+    feat_cat.remove(date)
+
+- we also saw `number` which seem to have a lot of unique values if we check it is actually the unique incident numbers in this column, so not really categorical in nature and might not be very useful to predict the targets. so lets remove this as well from the categorical features list.
+
+
+
+feat_cat.remove('number')
+
+
+# lets check percentage of categories 
+
+for feat in feat_cat:
+    data_new[feat].value_counts().plot("bar", title=feat)
+    plt.show()
+
+# checking percentage of each category in that column
+for feat in feat_cat:
+    display(data_new[feat].value_counts(normalize=True))
+    
+
+# Checking if closed code can has any affect w.r.t incident_state
+pd.crosstab(data_new['incident_state'], data_new['closed_code'])
